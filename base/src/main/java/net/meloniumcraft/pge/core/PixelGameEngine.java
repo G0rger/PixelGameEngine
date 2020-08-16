@@ -34,6 +34,7 @@ public abstract class PixelGameEngine {
     public PixelGameEngine() {
         backend = ServiceLoader.load(PGEBackend.class).iterator().next();
         Sprite.setBackend(backend);
+        Decal.setBackend(backend);
     }
     
     protected boolean OnUserCreate() { return true; }
