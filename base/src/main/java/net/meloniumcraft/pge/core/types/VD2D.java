@@ -9,13 +9,15 @@ public final class VD2D {
     public VD2D(double x, double y) {this.x = x; this.y = y;}
     public VD2D(VD2D v) {this.x = v.x; this.y = v.y;}
     
-    public VD2D add        (VI2D other) { return new VD2D(this.x + other.x, this.y + other.y); }
-    public VD2D subtract   (VI2D other) { return new VD2D(this.x - other.x, this.y - other.y); }
+    public double mag() { return Math.sqrt(x * x + y * y); }
+    
+    public VD2D add        (VD2D other) { return new VD2D(this.x + other.x, this.y + other.y); }
+    public VD2D subtract   (VD2D other) { return new VD2D(this.x - other.x, this.y - other.y); }
     public VD2D multiply   (int other)  { return new VD2D(this.x * other,   this.y * other);   }
     public VD2D multiplyRev(int other)  { return new VD2D(this.x * other,   this.y * other);   }
-    public VD2D multiply   (VI2D other) { return new VD2D(this.x * other.x, this.y * other.y); }
+    public VD2D multiply   (VD2D other) { return new VD2D(this.x * other.x, this.y * other.y); }
     public VD2D divide     (int other)  { return new VD2D(this.x / other,   this.y / other);   }
-    public VD2D divide     (VI2D other) { return new VD2D(this.x / other.x, this.y / other.y); }
+    public VD2D divide     (VD2D other) { return new VD2D(this.x / other.x, this.y / other.y); }
     
     @Override
     public boolean equals(Object o) {

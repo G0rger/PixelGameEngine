@@ -5,7 +5,7 @@
     <parent>
         <artifactId>pge-parent</artifactId>
         <groupId>net.meloniumcraft.pge</groupId>
-        <version>1.0</version>
+        <version>1.1</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -20,7 +20,7 @@
 
     <dependencies>
         <dependency><groupId>net.meloniumcraft.utils</groupId><artifactId>listutils</artifactId><version>1.0</version></dependency>
-        <dependency><groupId>net.meloniumcraft.pge</groupId><artifactId>pge-base</artifactId><version>1.0</version></dependency>
+        <dependency><groupId>net.meloniumcraft.pge</groupId><artifactId>pge-base</artifactId><version>${pge.version}</version></dependency>
 		<dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-glfw</artifactId></dependency>
 		<dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-opengl</artifactId></dependency>
 		<dependency><groupId>org.lwjgl</groupId><artifactId>lwjgl-stb</artifactId></dependency>

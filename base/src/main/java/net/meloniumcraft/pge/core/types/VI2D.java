@@ -9,6 +9,8 @@ public final class VI2D {
     public VI2D(int x, int y) {this.x = x; this.y = y;}
     public VI2D(VI2D v) {this.x = v.x; this.y = v.y;}
     
+    public int mag() { return (int) Math.sqrt(x * x + y * y); }
+    
     public VI2D add        (VI2D other) { return new VI2D(this.x + other.x, this.y + other.y); }
     public VI2D subtract   (VI2D other) { return new VI2D(this.x - other.x, this.y - other.y); }
     public VI2D multiply   (int other)  { return new VI2D(this.x * other,   this.y * other);   }

@@ -11,15 +11,17 @@ import net.meloniumcraft.pge.core.types.*;
 import net.meloniumcraft.utils.list.ReverseListIterator;
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GL32;
+import org.lwjgl.stb.STBImage;
+import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.lwjgl.glfw.GLFW.*;
-import static org.lwjgl.opengl.GL32.*;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
 public final class PGEBackendImpl extends PGEBackend {
@@ -31,8 +33,9 @@ public final class PGEBackendImpl extends PGEBackend {
         public final LinkedList<DecalInstance> decals;
         public Pixel tint;
         public boolean bShow;
+        public final int id;
         
-        public LayerDesc(int texID, int frambufferID) {
+        public LayerDesc(int texID, int frambufferID, int id) {
             this.texID = texID;
             this.frambufferID = frambufferID;
             offset = new VF2D();
@@ -40,6 +43,7 @@ public final class PGEBackendImpl extends PGEBackend {
             decals = new LinkedList<>();
             tint = Pixel.WHITE;
             bShow = true;
+            this.id = id;
         }
     }
     private static class DecalInstance {
@@ -70,70 +74,72 @@ public final class PGEBackendImpl extends PGEBackend {
     private List<ScrollCallback> scrollCallbacks;
     
     private static final Map<Integer, Key> keyMap = Stream.of(new Object[][] {
-            {GLFW_KEY_A, Key.A}, {GLFW_KEY_B, Key.B}, {GLFW_KEY_C, Key.C}, {GLFW_KEY_D, Key.D}, {GLFW_KEY_E, Key.E},
-            {GLFW_KEY_F, Key.F}, {GLFW_KEY_G, Key.G}, {GLFW_KEY_H, Key.H}, {GLFW_KEY_I, Key.I}, {GLFW_KEY_J, Key.J},
-            {GLFW_KEY_K, Key.K}, {GLFW_KEY_L, Key.L}, {GLFW_KEY_M, Key.M}, {GLFW_KEY_N, Key.N}, {GLFW_KEY_O, Key.O},
-            {GLFW_KEY_P, Key.P}, {GLFW_KEY_Q, Key.Q}, {GLFW_KEY_R, Key.R}, {GLFW_KEY_S, Key.S}, {GLFW_KEY_T, Key.T},
-            {GLFW_KEY_U, Key.U}, {GLFW_KEY_V, Key.V}, {GLFW_KEY_W, Key.W}, {GLFW_KEY_X, Key.X}, {GLFW_KEY_Y, Key.Y},
-            {GLFW_KEY_Z, Key.Z}, {GLFW_KEY_0, Key.K0}, {GLFW_KEY_1, Key.K1}, {GLFW_KEY_2, Key.K2}, {GLFW_KEY_3, Key.K3},
-            {GLFW_KEY_4, Key.K4}, {GLFW_KEY_5, Key.K5}, {GLFW_KEY_6, Key.K6}, {GLFW_KEY_7, Key.K7},
-            {GLFW_KEY_8, Key.K8}, {GLFW_KEY_9, Key.K9}, {GLFW_KEY_F1, Key.F1}, {GLFW_KEY_F2, Key.F2},
-            {GLFW_KEY_F3, Key.F3}, {GLFW_KEY_F4, Key.F4}, {GLFW_KEY_F5, Key.F5}, {GLFW_KEY_F6, Key.F6},
-            {GLFW_KEY_F7, Key.F7}, {GLFW_KEY_F8, Key.F8}, {GLFW_KEY_F9, Key.F9}, {GLFW_KEY_F10, Key.F10},
-            {GLFW_KEY_F11, Key.F11}, {GLFW_KEY_F12, Key.F12}, {GLFW_KEY_UP, Key.UP}, {GLFW_KEY_DOWN, Key.DOWN},
-            {GLFW_KEY_LEFT, Key.LEFT}, {GLFW_KEY_RIGHT, Key.RIGHT}, {GLFW_KEY_SPACE, Key.SPACE},
-            {GLFW_KEY_TAB, Key.TAB}, {GLFW_KEY_LEFT_SHIFT, Key.SHIFT}, {GLFW_KEY_RIGHT_SHIFT, Key.SHIFT},
-            {GLFW_KEY_LEFT_CONTROL, Key.CTRL}, {GLFW_KEY_RIGHT_CONTROL, Key.CTRL}, {GLFW_KEY_INSERT, Key.INS},
-            {GLFW_KEY_DELETE, Key.DEL}, {GLFW_KEY_HOME, Key.HOME}, {GLFW_KEY_END, Key.END},
-            {GLFW_KEY_PAGE_UP, Key.PGUP}, {GLFW_KEY_PAGE_DOWN, Key.PGDN}, {GLFW_KEY_BACKSPACE, Key.BACK},
-            {GLFW_KEY_ESCAPE, Key.ESCAPE}, {GLFW_KEY_ENTER, Key.RETURN}, {GLFW_KEY_KP_ENTER, Key.ENTER},
-            {GLFW_KEY_PAUSE, Key.PAUSE}, {GLFW_KEY_SCROLL_LOCK, Key.SCROLL}, {GLFW_KEY_KP_0, Key.NP0},
-            {GLFW_KEY_KP_1, Key.NP1}, {GLFW_KEY_KP_2, Key.NP2}, {GLFW_KEY_KP_3, Key.NP3}, {GLFW_KEY_KP_4, Key.NP4},
-            {GLFW_KEY_KP_5, Key.NP5}, {GLFW_KEY_KP_6, Key.NP6}, {GLFW_KEY_KP_7, Key.NP7}, {GLFW_KEY_KP_8, Key.NP8},
-            {GLFW_KEY_KP_9, Key.NP9}, {GLFW_KEY_KP_MULTIPLY, Key.NP_MUL}, {GLFW_KEY_KP_DIVIDE, Key.NP_ADD},
-            {GLFW_KEY_KP_ADD, Key.NP_ADD}, {GLFW_KEY_KP_SUBTRACT, Key.NP_SUB}, {GLFW_KEY_KP_DECIMAL, Key.NP_DECIMAL},
-            {GLFW_KEY_PERIOD, Key.PERIOD},
+            {GLFW.GLFW_KEY_A, Key.A}, {GLFW.GLFW_KEY_B, Key.B}, {GLFW.GLFW_KEY_C, Key.C}, {GLFW.GLFW_KEY_D, Key.D},
+            {GLFW.GLFW_KEY_E, Key.E}, {GLFW.GLFW_KEY_F, Key.F}, {GLFW.GLFW_KEY_G, Key.G}, {GLFW.GLFW_KEY_H, Key.H},
+            {GLFW.GLFW_KEY_I, Key.I}, {GLFW.GLFW_KEY_J, Key.J}, {GLFW.GLFW_KEY_K, Key.K}, {GLFW.GLFW_KEY_L, Key.L},
+            {GLFW.GLFW_KEY_M, Key.M}, {GLFW.GLFW_KEY_N, Key.N}, {GLFW.GLFW_KEY_O, Key.O}, {GLFW.GLFW_KEY_P, Key.P},
+            {GLFW.GLFW_KEY_Q, Key.Q}, {GLFW.GLFW_KEY_R, Key.R}, {GLFW.GLFW_KEY_S, Key.S}, {GLFW.GLFW_KEY_T, Key.T},
+            {GLFW.GLFW_KEY_U, Key.U}, {GLFW.GLFW_KEY_V, Key.V}, {GLFW.GLFW_KEY_W, Key.W}, {GLFW.GLFW_KEY_X, Key.X},
+            {GLFW.GLFW_KEY_Y, Key.Y}, {GLFW.GLFW_KEY_Z, Key.Z}, {GLFW.GLFW_KEY_0, Key.K0}, {GLFW.GLFW_KEY_1, Key.K1},
+            {GLFW.GLFW_KEY_2, Key.K2}, {GLFW.GLFW_KEY_3, Key.K3}, {GLFW.GLFW_KEY_4, Key.K4}, {GLFW.GLFW_KEY_5, Key.K5},
+            {GLFW.GLFW_KEY_6, Key.K6}, {GLFW.GLFW_KEY_7, Key.K7}, {GLFW.GLFW_KEY_8, Key.K8}, {GLFW.GLFW_KEY_9, Key.K9},
+            {GLFW.GLFW_KEY_F1, Key.F1}, {GLFW.GLFW_KEY_F2, Key.F2}, {GLFW.GLFW_KEY_F3, Key.F3},
+            {GLFW.GLFW_KEY_F4, Key.F4}, {GLFW.GLFW_KEY_F5, Key.F5}, {GLFW.GLFW_KEY_F6, Key.F6},
+            {GLFW.GLFW_KEY_F7, Key.F7}, {GLFW.GLFW_KEY_F8, Key.F8}, {GLFW.GLFW_KEY_F9, Key.F9},
+            {GLFW.GLFW_KEY_F10, Key.F10}, {GLFW.GLFW_KEY_F11, Key.F11}, {GLFW.GLFW_KEY_F12, Key.F12},
+            {GLFW.GLFW_KEY_UP, Key.UP}, {GLFW.GLFW_KEY_DOWN, Key.DOWN}, {GLFW.GLFW_KEY_LEFT, Key.LEFT},
+            {GLFW.GLFW_KEY_RIGHT, Key.RIGHT}, {GLFW.GLFW_KEY_SPACE, Key.SPACE}, {GLFW.GLFW_KEY_TAB, Key.TAB},
+            {GLFW.GLFW_KEY_LEFT_SHIFT, Key.SHIFT}, {GLFW.GLFW_KEY_RIGHT_SHIFT, Key.SHIFT},
+            {GLFW.GLFW_KEY_LEFT_CONTROL, Key.CTRL}, {GLFW.GLFW_KEY_RIGHT_CONTROL, Key.CTRL},
+            {GLFW.GLFW_KEY_INSERT, Key.INS}, {GLFW.GLFW_KEY_DELETE, Key.DEL}, {GLFW.GLFW_KEY_HOME, Key.HOME},
+            {GLFW.GLFW_KEY_END, Key.END}, {GLFW.GLFW_KEY_PAGE_UP, Key.PGUP}, {GLFW.GLFW_KEY_PAGE_DOWN, Key.PGDN},
+            {GLFW.GLFW_KEY_BACKSPACE, Key.BACK}, {GLFW.GLFW_KEY_ESCAPE, Key.ESCAPE}, {GLFW.GLFW_KEY_ENTER, Key.RETURN},
+            {GLFW.GLFW_KEY_KP_ENTER, Key.ENTER}, {GLFW.GLFW_KEY_PAUSE, Key.PAUSE},
+            {GLFW.GLFW_KEY_SCROLL_LOCK, Key.SCROLL}, {GLFW.GLFW_KEY_KP_0, Key.NP0}, {GLFW.GLFW_KEY_KP_1, Key.NP1},
+            {GLFW.GLFW_KEY_KP_2, Key.NP2}, {GLFW.GLFW_KEY_KP_3, Key.NP3}, {GLFW.GLFW_KEY_KP_4, Key.NP4},
+            {GLFW.GLFW_KEY_KP_5, Key.NP5}, {GLFW.GLFW_KEY_KP_6, Key.NP6}, {GLFW.GLFW_KEY_KP_7, Key.NP7},
+            {GLFW.GLFW_KEY_KP_8, Key.NP8}, {GLFW.GLFW_KEY_KP_9, Key.NP9}, {GLFW.GLFW_KEY_KP_MULTIPLY, Key.NP_MUL},
+            {GLFW.GLFW_KEY_KP_DIVIDE, Key.NP_ADD}, {GLFW.GLFW_KEY_KP_ADD, Key.NP_ADD},
+            {GLFW.GLFW_KEY_KP_SUBTRACT, Key.NP_SUB}, {GLFW.GLFW_KEY_KP_DECIMAL, Key.NP_DECIMAL},
+            {GLFW.GLFW_KEY_PERIOD, Key.PERIOD},
     }).collect(Collectors.collectingAndThen(Collectors.toMap(data -> (Integer)data[0], data -> (Key)data[1]), Collections::<Integer, Key>unmodifiableMap));
     
-    private LayerDesc currLayer;
-    private int layer;
+    private LayerDesc layer;
     private List<LayerDesc> layers;
     
     @Override
     public int CreateLayer() {
         int id = layers.size();
-        layer = id;
         
-        int bufferID = glGenFramebuffers();
-        glBindFramebuffer(GL_FRAMEBUFFER, bufferID);
+        int bufferID = GL32.glGenFramebuffers();
+        GL32.glBindFramebuffer(GL32.GL_FRAMEBUFFER, bufferID);
         
-        int texID = glGenTextures();
+        int texID = GL32.glGenTextures();
         
-        glBindTexture(GL_TEXTURE_2D, texID);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, screenSize.x, screenSize.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, texID);
+        GL32.glTexImage2D(GL32.GL_TEXTURE_2D, 0, GL32.GL_RGBA8, screenSize.x, screenSize.y, 0, GL32.GL_RGBA, GL32.GL_UNSIGNED_BYTE, 0);
+        GL32.glTexParameteri(GL32.GL_TEXTURE_2D, GL32.GL_TEXTURE_MAG_FILTER, GL32.GL_NEAREST);
+        GL32.glTexParameteri(GL32.GL_TEXTURE_2D, GL32.GL_TEXTURE_MIN_FILTER, GL32.GL_NEAREST);
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, 0);
         
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, texID, 0);
-    
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) throw new IllegalStateException("Couldn't create framebuffer");
-    
-        currLayer = new LayerDesc(texID, bufferID);
-        layers.add(currLayer);
+        GL32.glFramebufferTexture(GL32.GL_FRAMEBUFFER, GL32.GL_COLOR_ATTACHMENT0, texID, 0);
+        
+        if (GL32.glCheckFramebufferStatus(GL32.GL_FRAMEBUFFER) != GL32.GL_FRAMEBUFFER_COMPLETE) throw new IllegalStateException("Couldn't create framebuffer");
+        
+        layer = new LayerDesc(texID, bufferID, id);
+        layers.add(layer);
         return id;
     }
     
     @Override
     public int GetLayer() {
-        return layer;
+        return layer.id;
     }
     
     @Override
     public void SetLayer(int layer) {
-        this.layer = layer;
-        this.currLayer = layers.get(layer);
-        glBindFramebuffer(GL_FRAMEBUFFER, currLayer.frambufferID);
+        this.layer = layers.get(layer);
+        GL32.glBindFramebuffer(GL32.GL_FRAMEBUFFER, this.layer.frambufferID);
     }
     
     @Override
@@ -158,25 +164,25 @@ public final class PGEBackendImpl extends PGEBackend {
     
     @Override
     public void Clear(Pixel p) {
-        glClearColor(((int)p.r & 0xff) / 255.f, ((int)p.g & 0xff) / 255.f, ((int)p.b & 0xff) / 255.f, ((int)p.a & 0xff) / 255.f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        GL32.glClearColor(((int)p.r & 0xff) / 255.f, ((int)p.g & 0xff) / 255.f, ((int)p.b & 0xff) / 255.f, ((int)p.a & 0xff) / 255.f);
+        GL32.glClear(GL32.GL_COLOR_BUFFER_BIT);
     }
     
     @Override
     public void Draw(int x, int y, Pixel p) {
-        glBegin(GL_POINTS);
-            glColor4ub(p.r, p.g, p.b, p.a);
-            glVertex2f(x+.5f, y+.5f);
-        glEnd();
+        GL32.glBegin(GL32.GL_POINTS);
+        GL32.glColor4ub(p.r, p.g, p.b, p.a);
+        GL32.glVertex2f(x+.5f, y+.5f);
+        GL32.glEnd();
     }
     
     @Override
     public void DrawLine(int x1, int y1, int x2, int y2, Pixel p) {
-        glBegin(GL_LINE_LOOP);
-            glColor4ub(p.r, p.g, p.b, p.a);
-            glVertex2f(x1+.5f, y1+.5f);
-            glVertex2f(x2+.5f, y2+.5f);
-        glEnd();
+        GL32.glBegin(GL32.GL_LINE_LOOP);
+        GL32.glColor4ub(p.r, p.g, p.b, p.a);
+        GL32.glVertex2f(x1+.5f, y1+.5f);
+        GL32.glVertex2f(x2+.5f, y2+.5f);
+        GL32.glEnd();
     }
     
     @Override
@@ -241,84 +247,84 @@ public final class PGEBackendImpl extends PGEBackend {
         float ny1 = y+.5f;
         float nx2 = nx1+w-1;
         float ny2 = ny1+h-1;
-        glBegin(GL_LINE_LOOP);
-            glColor4ub(p.r, p.g, p.b, p.a);
-            glVertex2f(nx1, ny1);
-            glVertex2f(nx2, ny1);
-            glVertex2f(nx2, ny2);
-            glVertex2f(nx1, ny2);
-        glEnd();
+        GL32.glBegin(GL32.GL_LINE_LOOP);
+        GL32.glColor4ub(p.r, p.g, p.b, p.a);
+        GL32.glVertex2f(nx1, ny1);
+        GL32.glVertex2f(nx2, ny1);
+        GL32.glVertex2f(nx2, ny2);
+        GL32.glVertex2f(nx1, ny2);
+        GL32.glEnd();
     }
     
     @Override
     public void FillRect(int x, int y, int w, int h, Pixel p) {
         int nx = x+w;
         int ny = y+h;
-        glBegin(GL_QUADS);
-            glColor4ub(p.r, p.g, p.b, p.a);
-            glVertex2i(x, y);
-            glVertex2i(nx, y);
-            glVertex2i(nx, ny);
-            glVertex2i(x, ny);
-        glEnd();
+        GL32.glBegin(GL32.GL_QUADS);
+        GL32.glColor4ub(p.r, p.g, p.b, p.a);
+        GL32.glVertex2i(x, y);
+        GL32.glVertex2i(nx, y);
+        GL32.glVertex2i(nx, ny);
+        GL32.glVertex2i(x, ny);
+        GL32.glEnd();
     }
     
     @Override
     public void DrawTriangle(int x1, int y1, int x2, int y2, int x3, int y3, Pixel p) {
-        glBegin(GL_LINE_LOOP);
-            glColor4ub(p.r, p.g, p.b, p.a);
-            glVertex2f(x1+.5f, y1+.5f);
-            glVertex2f(x2+.5f, y2+.5f);
-            glVertex2f(x3+.5f, y3+.5f);
-        glEnd();
+        GL32.glBegin(GL32.GL_LINE_LOOP);
+        GL32.glColor4ub(p.r, p.g, p.b, p.a);
+        GL32.glVertex2f(x1+.5f, y1+.5f);
+        GL32.glVertex2f(x2+.5f, y2+.5f);
+        GL32.glVertex2f(x3+.5f, y3+.5f);
+        GL32.glEnd();
     }
     
     @Override
     public void FillTriangle(int x1, int y1, int x2, int y2, int x3, int y3, Pixel p) {
-        glBegin(GL_TRIANGLES);
-            glColor4ub(p.r, p.g, p.b, p.a);
-            glVertex2i(x1, y1);
-            glVertex2i(x2, y2);
-            glVertex2i(x3, y3);
-        glEnd();
+        GL32.glBegin(GL32.GL_TRIANGLES);
+        GL32.glColor4ub(p.r, p.g, p.b, p.a);
+        GL32.glVertex2i(x1, y1);
+        GL32.glVertex2i(x2, y2);
+        GL32.glVertex2i(x3, y3);
+        GL32.glEnd();
     }
     
     @Override
     public void DrawSprite(int x, int y, Sprite sprite, int scale, Sprite.FLIP flip) {
-        int x1 = 0;
-        int y1 = 0;
-        int x2 = 0;
-        int y2 = 0;
+        int u1 = 0;
+        int v1 = 0;
+        int u2 = 0;
+        int v2 = 0;
         switch (flip) {
             case NONE:
-                x2 = 1;
-                y2 = 1;
+                u2 = 1;
+                v2 = 1;
                 break;
             case HORIZONTAL:
-                x2 = 1;
-                y1 = 1;
+                u2 = 1;
+                v1 = 1;
                 break;
             case VERTICAL:
-                x1 = 1;
-                y2 = 1;
+                u1 = 1;
+                v2 = 1;
                 break;
             case BOTH:
-                x1 = 1;
-                y1 = 1;
+                u1 = 1;
+                v1 = 1;
         }
-        glColor4f(1, 1, 1, 1);
-        glBindTexture(GL_TEXTURE_2D, sprite.getId());
-        glBegin(GL_QUADS);
-        glTexCoord2f(x1, y1);
-        glVertex2i(x, y);
-        glTexCoord2f(x2, y1);
-        glVertex2i(x + sprite.getWidth() * scale, y);
-        glTexCoord2f(x2, y2);
-        glVertex2i(x + sprite.getWidth() * scale, y + sprite.getHeight() * scale);
-        glTexCoord2f(x1, y2);
-        glVertex2i(x, y + sprite.getHeight() * scale);
-        glEnd();
-        glBindTexture(GL_TEXTURE_2D, 0);
+        GL32.glColor4f(1, 1, 1, 1);
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, sprite.getId());
+        GL32.glBegin(GL32.GL_QUADS);
+        GL32.glTexCoord2f(u1, v1);
+        GL32.glVertex2i(x, y);
+        GL32.glTexCoord2f(u2, v1);
+        GL32.glVertex2i(x + sprite.getWidth() * scale, y);
+        GL32.glTexCoord2f(u2, v2);
+        GL32.glVertex2i(x + sprite.getWidth() * scale, y + sprite.getHeight() * scale);
+        GL32.glTexCoord2f(u1, v2);
+        GL32.glVertex2i(x, y + sprite.getHeight() * scale);
+        GL32.glEnd();
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, 0);
     }
     
     @Override
@@ -329,14 +335,14 @@ public final class PGEBackendImpl extends PGEBackend {
     public void DrawDecal(VF2D pos, Decal decal, VF2D scale, Pixel tint) {
         float w = decal.getSprite().getWidth() * scale.x;
         float h = decal.getSprite().getHeight() * scale.y;
-        DecalInstance instance = new DecalInstance();
-        instance.decal = decal;
-        instance.pos[0] = new VF2D(pos.x, pos.y);
-        instance.pos[1] = new VF2D(pos.x+w, pos.y);
-        instance.pos[2] = new VF2D(pos.x+w, pos.y+h);
-        instance.pos[3] = new VF2D(pos.x, pos.y+h);
-        instance.tint[0] = tint;
-        currLayer.decals.add(instance);
+        DecalInstance di = new DecalInstance();
+        di.decal = decal;
+        di.pos[0] = new VF2D(pos.x, pos.y);
+        di.pos[1] = new VF2D(pos.x+w, pos.y);
+        di.pos[2] = new VF2D(pos.x+w, pos.y+h);
+        di.pos[3] = new VF2D(pos.x, pos.y+h);
+        di.tint[0] = tint;
+        layer.decals.add(di);
     }
     
     @Override
@@ -352,38 +358,111 @@ public final class PGEBackendImpl extends PGEBackend {
         
         di.pos[0] = new VF2D(x1, y1);
         di.pos[1] = new VF2D(x1, y2);
-        di.pos[1] = new VF2D(x2, y2);
-        di.pos[1] = new VF2D(x2, y1);
+        di.pos[2] = new VF2D(x2, y2);
+        di.pos[3] = new VF2D(x2, y1);
         
-        float uvScaleX = 1.f / decal.getSprite().getWidth();
-        float uvScaleY = 1.f / decal.getSprite().getHeight();
+        float u1 = source_pos.x * decal.uvScale.x;
+        float v1 = source_pos.y * decal.uvScale.y;
+        float u2 = u1 + source_size.x * decal.uvScale.x;
+        float v2 = v1 + source_size.y * decal.uvScale.y;
         
-        float u1 = source_pos.x;
-        float v1;
-        float u2;
-        float v2;
+        di.uv[0] = new VF2D(u1, v1);
+        di.uv[1] = new VF2D(u1, v2);
+        di.uv[2] = new VF2D(u2, v2);
+        di.uv[3] = new VF2D(u2, v1);
+        layer.decals.add(di);
     }
     
     @Override
     public void DrawPartialDecal(VF2D pos, VF2D size, Decal decal, VF2D source_pos, VF2D source_size, Pixel tint) {
+        float x1 = pos.x;
+        float y1 = pos.y;
+        float x2 = pos.x + size.x;
+        float y2 = pos.y + size.y;
+        
+        DecalInstance di = new DecalInstance();
+        di.decal = decal;
+        di.tint[0] = tint;
+        
+        di.pos[0] = new VF2D(x1, y1);
+        di.pos[1] = new VF2D(x1, y2);
+        di.pos[2] = new VF2D(x2, y2);
+        di.pos[3] = new VF2D(x2, y1);
+        
+        float u1 = source_pos.x * decal.uvScale.x;
+        float v1 = source_pos.y * decal.uvScale.y;
+        float u2 = u1 + source_size.x * decal.uvScale.x;
+        float v2 = v1 + source_size.y * decal.uvScale.y;
+        
+        di.uv[0] = new VF2D(u1, v1);
+        di.uv[1] = new VF2D(u1, v2);
+        di.uv[2] = new VF2D(u2, v2);
+        di.uv[3] = new VF2D(u2, v1);
+        layer.decals.add(di);
     }
     
     @Override
     public void DrawExplicitDecal(Decal decal, VF2D[] pos, VF2D[] uv, Pixel[] col) {
-        DecalInstance instance = new DecalInstance();
-        instance.decal = decal;
-        instance.pos = pos;
-        instance.uv = uv;
-        instance.tint = col;
-        currLayer.decals.add(instance);
+        DecalInstance di = new DecalInstance();
+        di.decal = decal;
+        di.pos = pos;
+        di.uv = uv;
+        di.tint = col;
+        layer.decals.add(di);
     }
     
     @Override
     public void DrawWarpedDecal(Decal decal, VF2D[] pos, Pixel tint) {
+        DecalInstance di = new DecalInstance();
+        di.decal = decal;
+        di.tint[0] = tint;
+        VF2D center = new VF2D();
+        float rd = ((pos[2].x - pos[0].x) * (pos[3].y - pos[1].y) - (pos[3].x - pos[1].x) * (pos[2].y - pos[0].y));
+        if (rd != 0) {
+            rd = 1.f / rd;
+            float rn = ((pos[3].x - pos[1].x) * (pos[0].y - pos[1].y) - (pos[3].y - pos[1].y) * (pos[0].x - pos[1].x)) * rd;
+            float sn = ((pos[2].x - pos[0].x) * (pos[0].y - pos[1].y) - (pos[2].y - pos[0].y) * (pos[0].x - pos[1].x)) * rd;
+            if (!(rn < 0.f || rn > 1.f || sn < 0.f || sn > 1.f)) center = pos[0].add(pos[2].subtract(pos[0]).multiply(rn));
+            float[] d = new float[4]; for (int i = 0; i < 4; i++) d[i] = pos[i].subtract(center).mag();
+            for (int i = 0; i < 4; i++) {
+                float q = d[i] == 0.f ? 1.f : (d[i] + d[(i + 2) & 3]) / d[(i + 2) & 3];
+                di.uv[i] = di.uv[i].multiply(q); di.w[i] *= q;
+                di.pos[i] = new VF2D(pos[i]);
+            }
+            layer.decals.add(di);
+        }
     }
     
     @Override
     public void DrawPartialWarpedDecal(Decal decal, VF2D[] pos, VF2D source_pos, VF2D source_size, Pixel tint) {
+        DecalInstance di = new DecalInstance();
+        di.decal = decal;
+        di.tint[0] = tint;
+        VF2D center = new VF2D();
+        float rd = ((pos[2].x - pos[0].x) * (pos[3].y - pos[1].y) - (pos[3].x - pos[1].x) * (pos[2].y - pos[0].y));
+        if (rd != 0) {
+            float u1 = source_pos.x * decal.uvScale.x;
+            float v1 = source_pos.y * decal.uvScale.y;
+            float u2 = u1 + source_size.x * decal.uvScale.x;
+            float v2 = v1 + source_size.y * decal.uvScale.y;
+            
+            di.uv[0] = new VF2D(u1, v1);
+            di.uv[1] = new VF2D(u1, v2);
+            di.uv[2] = new VF2D(u2, v2);
+            di.uv[3] = new VF2D(u2, v1);
+            
+            rd = 1.f / rd;
+            float rn = ((pos[3].x - pos[1].x) * (pos[0].y - pos[1].y) - (pos[3].y - pos[1].y) * (pos[0].x - pos[1].x)) * rd;
+            float sn = ((pos[2].x - pos[0].x) * (pos[0].y - pos[1].y) - (pos[2].y - pos[0].y) * (pos[0].x - pos[1].x)) * rd;
+            if (!(rn < 0.f || rn > 1.f || sn < 0.f || sn > 1.f)) center = pos[0].add(pos[2].subtract(pos[0]).multiply(rn));
+            float[] d = new float[4]; for (int i = 0; i < 4; i++) d[i] = pos[i].subtract(center).mag();
+            for (int i = 0; i < 4; i++) {
+                float q = d[i] == 0.f ? 1.f : (d[i] + d[(i + 2) & 3]) / d[(i + 2) & 3];
+                di.uv[i] = di.uv[i].multiply(q); di.w[i] *= q;
+                di.pos[i] = new VF2D(pos[i]);
+            }
+            layer.decals.add(di);
+        }
     }
     
     @Override
@@ -411,9 +490,9 @@ public final class PGEBackendImpl extends PGEBackend {
     public void DrawString(int x, int y, String sText, Pixel col, int scale) {
         int sx = 0;
         int sy = 0;
-        glBindTexture(GL_TEXTURE_2D, fontSprite.getId());
-        glBegin(GL_QUADS);
-        glColor4ub(col.r, col.g, col.b, col.a);
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, fontSprite.getId());
+        GL32.glBegin(GL32.GL_QUADS);
+        GL32.glColor4ub(col.r, col.g, col.b, col.a);
         for (char c : sText.toCharArray()) {
             if (c == '\n') {
                 sx = 0;
@@ -422,16 +501,16 @@ public final class PGEBackendImpl extends PGEBackend {
                 int ox = (c - 32) % 16;
                 int oy = (c - 32) / 16;
                 
-                glTexCoord2f((ox) / 16.f, (oy) / 6.f); glVertex2i(x+sx, y+sy);
-                glTexCoord2f((ox+1) / 16.f, (oy) / 6.f); glVertex2i(x+sx+8, y+sy);
-                glTexCoord2f((ox+1) / 16.f, (oy+1) / 6.f); glVertex2i(x+sx+8, y+sy+8);
-                glTexCoord2f((ox) / 16.f, (oy+1) / 6.f); glVertex2i(x+sx, y+sy+8);
+                GL32.glTexCoord2f((ox) / 16.f, (oy) / 6.f); GL32.glVertex2i(x+sx, y+sy);
+                GL32.glTexCoord2f((ox+1) / 16.f, (oy) / 6.f); GL32.glVertex2i(x+sx+8, y+sy);
+                GL32.glTexCoord2f((ox+1) / 16.f, (oy+1) / 6.f); GL32.glVertex2i(x+sx+8, y+sy+8);
+                GL32.glTexCoord2f((ox) / 16.f, (oy+1) / 6.f); GL32.glVertex2i(x+sx, y+sy+8);
                 
                 sx += 8 * scale;
             }
         }
-        glEnd();
-        glBindTexture(GL_TEXTURE_2D, 0);
+        GL32.glEnd();
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, 0);
     }
     
     @Override
@@ -440,25 +519,46 @@ public final class PGEBackendImpl extends PGEBackend {
     
     @Override
     public int CreateSprite() {
-        return glGenTextures();
+        return GL32.glGenTextures();
     }
     
     @Override
     public void MakeSprite(Sprite sprite, int width, int height) {
-        glBindTexture(GL_TEXTURE_2D, sprite.getId());
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, sprite.getId());
+        GL32.glTexImage2D(GL32.GL_TEXTURE_2D, 0, GL32.GL_RGBA8, width, height, 0, GL32.GL_RGBA, GL32.GL_UNSIGNED_BYTE, 0);
+        GL32.glTexParameteri(GL32.GL_TEXTURE_2D, GL32.GL_TEXTURE_MAG_FILTER, GL32.GL_NEAREST);
+        GL32.glTexParameteri(GL32.GL_TEXTURE_2D, GL32.GL_TEXTURE_MIN_FILTER, GL32.GL_NEAREST);
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, 0);
     }
     
     @Override
     public void LoadSpriteTexture(Sprite sprite, String path, boolean packed) {
+        if (!packed) {
+            int w, h;
+            ByteBuffer image;
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                IntBuffer width = stack.mallocInt(1);
+                IntBuffer height = stack.mallocInt(1);
+                IntBuffer comp = stack.mallocInt(1);
+                
+                image = STBImage.stbi_load(path, width, height, comp, 4);
+                
+                w = width.get();
+                h = height.get();
+            }
+            sprite.setWidth(w);
+            sprite.setHeight(h);
+            GL32.glBindTexture(GL32.GL_TEXTURE_2D, sprite.getId());
+            GL32.glTexImage2D(GL32.GL_TEXTURE_2D, 0, GL32.GL_RGBA8, w, h, 0, GL32.GL_RGBA, GL32.GL_UNSIGNED_BYTE, image);
+            GL32.glTexParameteri(GL32.GL_TEXTURE_2D, GL32.GL_TEXTURE_MAG_FILTER, GL32.GL_NEAREST);
+            GL32.glTexParameteri(GL32.GL_TEXTURE_2D, GL32.GL_TEXTURE_MIN_FILTER, GL32.GL_NEAREST);
+            GL32.glBindTexture(GL32.GL_TEXTURE_2D, 0);
+        }
     }
     
     @Override
     public void DeleteSprite(Sprite sprite) {
-        glDeleteTextures(sprite.getId());
+        GL32.glDeleteTextures(sprite.getId());
     }
     
     @Override
@@ -471,9 +571,9 @@ public final class PGEBackendImpl extends PGEBackend {
     
     @Override
     public void Create(int screenW, int screenH, int pixelW, int pixelH, boolean fullScreen, boolean vSync) {
-        glfwSetErrorCallback(errorCallback);
-        glfwInit();
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        GLFW.glfwSetErrorCallback(errorCallback);
+        GLFW.glfwInit();
+        GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, GLFW.GLFW_FALSE);
         
         this.screenSize = new VI2D(screenW, screenH);
         
@@ -483,10 +583,10 @@ public final class PGEBackendImpl extends PGEBackend {
         if (fullScreen) {
             float ratio = (float)screenW / screenH;
             
-            monitor = glfwGetPrimaryMonitor();
-            GLFWVidMode mode = glfwGetVideoMode(monitor);
+            monitor = GLFW.glfwGetPrimaryMonitor();
+            GLFWVidMode mode = GLFW.glfwGetVideoMode(monitor);
             if (mode == null) {
-                glfwTerminate();
+                GLFW.glfwTerminate();
                 throw new RuntimeException("Failed to get the GLFW Video Mode");
             }
             
@@ -510,8 +610,8 @@ public final class PGEBackendImpl extends PGEBackend {
             this.windowSize = new VI2D(width, height);
             this.windowOffset = new VI2D(0, 0);
         }
-        window = glfwCreateWindow(width, height, "", monitor, NULL);
-        glfwMakeContextCurrent(window);
+        window = GLFW.glfwCreateWindow(width, height, "", monitor, NULL);
+        GLFW.glfwMakeContextCurrent(window);
         GL.createCapabilities();
         
         keyCallbacks = new LinkedList<>();
@@ -519,14 +619,14 @@ public final class PGEBackendImpl extends PGEBackend {
         mouseClickCallbacks = new LinkedList<>();
         scrollCallbacks = new LinkedList<>();
         
-        glfwSetKeyCallback(window, keyCallback = GLFWKeyCallback.create((window, key, scancode, action, mods) -> {
+        GLFW.glfwSetKeyCallback(window, keyCallback = GLFWKeyCallback.create((window, key, scancode, action, mods) -> {
             Key k = keyMap.getOrDefault(key, Key.NONE);
             ClickType type;
             switch(action) {
-                case GLFW_PRESS:
+                case GLFW.GLFW_PRESS:
                     type = ClickType.PRESSED;
                     break;
-                case GLFW_RELEASE:
+                case GLFW.GLFW_RELEASE:
                     type = ClickType.RELEASED;
                     break;
                 default:
@@ -536,13 +636,13 @@ public final class PGEBackendImpl extends PGEBackend {
                 callback.call(k, type);
         }));
         
-        glfwSetMouseButtonCallback(window, mouseButtonCallback = GLFWMouseButtonCallback.create((window, button, action, mods) -> {
+        GLFW.glfwSetMouseButtonCallback(window, mouseButtonCallback = GLFWMouseButtonCallback.create((window, button, action, mods) -> {
             ClickType type;
             switch (action) {
-                case GLFW_PRESS:
+                case GLFW.GLFW_PRESS:
                     type = ClickType.PRESSED;
                     break;
-                case GLFW_RELEASE:
+                case GLFW.GLFW_RELEASE:
                     type = ClickType.RELEASED;
                     break;
                 default:
@@ -552,39 +652,39 @@ public final class PGEBackendImpl extends PGEBackend {
                 callback.call(button, type);
         }));
         
-        glfwSetCursorPosCallback(window, cursorPosCallback = GLFWCursorPosCallback.create((window, xPos, yPos) -> {
-            int x = (int)(xPos / screenW);
-            int y = (int)(yPos / screenH);
+        GLFW.glfwSetCursorPosCallback(window, cursorPosCallback = GLFWCursorPosCallback.create((window, xPos, yPos) -> {
+            int x = (int)((xPos - windowOffset.x) / windowSize.x * screenW);
+            int y = (int)((yPos - windowOffset.y) / windowSize.y * screenH);
             for (MouseMoveCallback callback : mouseMoveCallbacks)
                 callback.call(x, y);
         }));
         
-        glfwSetScrollCallback(window, scrollCallback = GLFWScrollCallback.create((window, xOffset, yOffset) -> {
+        GLFW.glfwSetScrollCallback(window, scrollCallback = GLFWScrollCallback.create((window, xOffset, yOffset) -> {
             for (ScrollCallback callback : scrollCallbacks)
                 callback.call((int)yOffset);
         }));
         
-        glfwSwapInterval(vSync ? 1 : 0);
+        GLFW.glfwSwapInterval(vSync ? 1 : 0);
         
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glEnable(GL_BLEND);
+        GL32.glBlendFunc(GL32.GL_SRC_ALPHA, GL32.GL_ONE_MINUS_SRC_ALPHA);
+        GL32.glEnable(GL32.GL_BLEND);
         
-        glEnable(GL_TEXTURE_2D);
+        GL32.glEnable(GL32.GL_TEXTURE_2D);
         
         layers = new ArrayList<>();
         CreateLayer();
         
-        glLoadIdentity();
-        glOrtho(0, screenW, screenH, 0, -1, 1);
+        GL32.glLoadIdentity();
+        GL32.glOrtho(0, screenW, screenH, 0, -1, 1);
         
         CreateFont();
     }
     
     private void CreateFont() {
-        fontSprite = new Sprite(128, 48);
+        fontSprite = new Sprite();
         
         ByteBuffer image = MemoryUtil.memAlloc(128 * 48 * 4);
-    
+        
         char[] data = ("?Q`0001oOch0o01o@F40o0<AGD4090LAGD<090@A7ch0?00O7Q`0600>00000000" +
                 "O000000nOT0063Qo4d8>?7a14Gno94AA4gno94AaOT0>o3`oO400o7QN00000400" +
                 "Of80001oOg<7O7moBGT7O7lABET024@aBEd714AiOdl717a_=TH013Q>00000000" +
@@ -630,20 +730,22 @@ public final class PGEBackendImpl extends PGEBackend {
             }
         }
         
-        glBindTexture(GL_TEXTURE_2D, fontSprite.getId());
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 128, 48, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glBindTexture(GL_TEXTURE_2D, 0);
-    
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, fontSprite.getId());
+        GL32.glTexImage2D(GL32.GL_TEXTURE_2D, 0, GL32.GL_RGBA8, 128, 48, 0, GL32.GL_RGBA, GL32.GL_UNSIGNED_BYTE, image);
+        GL32.glTexParameterf(GL32.GL_TEXTURE_2D, GL32.GL_TEXTURE_MIN_FILTER, GL32.GL_NEAREST);
+        GL32.glTexParameterf(GL32.GL_TEXTURE_2D, GL32.GL_TEXTURE_MAG_FILTER, GL32.GL_NEAREST);
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, 0);
+        
         MemoryUtil.memFree(image);
+        
+        fontDecal = new Decal(fontSprite);
     }
     
     @Override
     public void Destroy() {
         layers.forEach(layer -> {
-            glDeleteFramebuffers(layer.frambufferID);
-            glDeleteTextures(layer.texID);
+            GL32.glDeleteFramebuffers(layer.frambufferID);
+            GL32.glDeleteTextures(layer.texID);
             layer.frambufferID = 0;
             layer.texID = 0;
         });
@@ -653,101 +755,101 @@ public final class PGEBackendImpl extends PGEBackend {
         cursorPosCallback.free();
         scrollCallback.free();
         
-        glfwDestroyWindow(window);
+        GLFW.glfwDestroyWindow(window);
         
-        glfwTerminate();
+        GLFW.glfwTerminate();
         errorCallback.free();
     }
     
     @Override
     public boolean ShouldClose() {
-        return glfwWindowShouldClose(window);
+        return GLFW.glfwWindowShouldClose(window);
     }
     
     @Override
     public void CloseHint(boolean close) {
-        glfwSetWindowShouldClose(window, close);
+        GLFW.glfwSetWindowShouldClose(window, close);
     }
     
     @Override
     public void OnPreUpdate() {
-        glBindFramebuffer(GL_FRAMEBUFFER, currLayer.frambufferID);
-        glViewport(0, 0, screenSize.x, screenSize.y);
+        GL32.glBindFramebuffer(GL32.GL_FRAMEBUFFER, layer.frambufferID);
+        GL32.glViewport(0, 0, screenSize.x, screenSize.y);
     }
     
     @Override
     public void OnPostUpdate() {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glViewport(windowOffset.x, windowOffset.y, windowSize.x, windowSize.y);
-
-        glClearColor(0, 0, 0, 1);
-        glClear(GL_COLOR_BUFFER_BIT);
-    
+        GL32.glBindFramebuffer(GL32.GL_FRAMEBUFFER, 0);
+        GL32.glViewport(windowOffset.x, windowOffset.y, windowSize.x, windowSize.y);
+        
+        GL32.glClearColor(0, 0, 0, 1);
+        GL32.glClear(GL32.GL_COLOR_BUFFER_BIT);
+        
         for (LayerDesc layer : new ReverseListIterator<>(layers)) {
             if (layer.bShow) {
                 Pixel tint = layer.tint;
                 VF2D scale = layer.scale;
                 VF2D offset = layer.offset;
-                glBindTexture(GL_TEXTURE_2D, layer.texID);
-                glBegin(GL_QUADS);
-                glColor4ub(tint.r, tint.g, tint.b, tint.a);
-                glTexCoord2f(0.f * scale.x + offset.x, 0.f * scale.y + offset.y);
-                glVertex2i(0, screenSize.y);
-                glTexCoord2f(1.f * scale.x + offset.x, 0.f * scale.y + offset.y);
-                glVertex2i(screenSize.x, screenSize.y);
-                glTexCoord2f(1.f * scale.x + offset.x, 1.f * scale.y + offset.y);
-                glVertex2i(screenSize.x, 0);
-                glTexCoord2f(0.f * scale.x + offset.x, 1.f * scale.y + offset.y);
-                glVertex2i(0, 0);
-                glEnd();
-            
+                GL32.glBindTexture(GL32.GL_TEXTURE_2D, layer.texID);
+                GL32.glBegin(GL32.GL_QUADS);
+                GL32.glColor4ub(tint.r, tint.g, tint.b, tint.a);
+                GL32.glTexCoord2f(0.f * scale.x + offset.x, 0.f * scale.y + offset.y);
+                GL32.glVertex2i(0, screenSize.y);
+                GL32.glTexCoord2f(1.f * scale.x + offset.x, 0.f * scale.y + offset.y);
+                GL32.glVertex2i(screenSize.x, screenSize.y);
+                GL32.glTexCoord2f(1.f * scale.x + offset.x, 1.f * scale.y + offset.y);
+                GL32.glVertex2i(screenSize.x, 0);
+                GL32.glTexCoord2f(0.f * scale.x + offset.x, 1.f * scale.y + offset.y);
+                GL32.glVertex2i(0, 0);
+                GL32.glEnd();
+                
                 for (DecalInstance decal : layer.decals) {
                     if (decal.decal == null) {
-                        glBindTexture(GL_TEXTURE_2D, 0);
-                        glBegin(GL_QUADS);
-                        glColor4ub(decal.tint[0].r, decal.tint[0].g, decal.tint[0].b, decal.tint[0].a);
-                        glTexCoord4f(decal.uv[0].x, decal.uv[0].y, 0, decal.w[0]);
-                        glVertex2f(decal.pos[0].x, decal.pos[0].y);
-                        glColor4ub(decal.tint[1].r, decal.tint[1].g, decal.tint[1].b, decal.tint[1].a);
-                        glTexCoord4f(decal.uv[1].x, decal.uv[1].y, 0, decal.w[1]);
-                        glVertex2f(decal.pos[1].x, decal.pos[1].y);
-                        glColor4ub(decal.tint[2].r, decal.tint[2].g, decal.tint[2].b, decal.tint[2].a);
-                        glTexCoord4f(decal.uv[2].x, decal.uv[2].y, 0, decal.w[2]);
-                        glVertex2f(decal.pos[2].x, decal.pos[2].y);
-                        glColor4ub(decal.tint[3].r, decal.tint[0].g, decal.tint[3].b, decal.tint[3].a);
+                        GL32.glBindTexture(GL32.GL_TEXTURE_2D, 0);
+                        GL32.glBegin(GL32.GL_QUADS);
+                        GL32.glColor4ub(decal.tint[0].r, decal.tint[0].g, decal.tint[0].b, decal.tint[0].a);
+                        GL32.glTexCoord4f(decal.uv[0].x, decal.uv[0].y, 0, decal.w[0]);
+                        GL32.glVertex2f(decal.pos[0].x, decal.pos[0].y);
+                        GL32.glColor4ub(decal.tint[1].r, decal.tint[1].g, decal.tint[1].b, decal.tint[1].a);
+                        GL32.glTexCoord4f(decal.uv[1].x, decal.uv[1].y, 0, decal.w[1]);
+                        GL32.glVertex2f(decal.pos[1].x, decal.pos[1].y);
+                        GL32.glColor4ub(decal.tint[2].r, decal.tint[2].g, decal.tint[2].b, decal.tint[2].a);
+                        GL32.glTexCoord4f(decal.uv[2].x, decal.uv[2].y, 0, decal.w[2]);
+                        GL32.glVertex2f(decal.pos[2].x, decal.pos[2].y);
+                        GL32.glColor4ub(decal.tint[3].r, decal.tint[0].g, decal.tint[3].b, decal.tint[3].a);
                     } else {
-                        glBindTexture(GL_TEXTURE_2D, decal.decal.getId());
-                        glBegin(GL_QUADS);
-                        glColor4ub(decal.tint[0].r, decal.tint[0].g, decal.tint[0].b, decal.tint[0].a);
-                        glTexCoord4f(decal.uv[0].x, decal.uv[0].y, 0, decal.w[0]);
-                        glVertex2f(decal.pos[0].x, decal.pos[0].y);
-                        glTexCoord4f(decal.uv[1].x, decal.uv[1].y, 0, decal.w[1]);
-                        glVertex2f(decal.pos[1].x, decal.pos[1].y);
-                        glTexCoord4f(decal.uv[2].x, decal.uv[2].y, 0, decal.w[2]);
-                        glVertex2f(decal.pos[2].x, decal.pos[2].y);
+                        GL32.glBindTexture(GL32.GL_TEXTURE_2D, decal.decal.getId());
+                        GL32.glBegin(GL32.GL_QUADS);
+                        GL32.glColor4ub(decal.tint[0].r, decal.tint[0].g, decal.tint[0].b, decal.tint[0].a);
+                        GL32.glTexCoord4f(decal.uv[0].x, decal.uv[0].y, 0, decal.w[0]);
+                        GL32.glVertex2f(decal.pos[0].x, decal.pos[0].y);
+                        GL32.glTexCoord4f(decal.uv[1].x, decal.uv[1].y, 0, decal.w[1]);
+                        GL32.glVertex2f(decal.pos[1].x, decal.pos[1].y);
+                        GL32.glTexCoord4f(decal.uv[2].x, decal.uv[2].y, 0, decal.w[2]);
+                        GL32.glVertex2f(decal.pos[2].x, decal.pos[2].y);
                     }
-                    glTexCoord4f(decal.uv[3].x, decal.uv[3].y, 0, decal.w[3]);
-                    glVertex2f(decal.pos[3].x, decal.pos[3].y);
-                    glEnd();
+                    GL32.glTexCoord4f(decal.uv[3].x, decal.uv[3].y, 0, decal.w[3]);
+                    GL32.glVertex2f(decal.pos[3].x, decal.pos[3].y);
+                    GL32.glEnd();
                 }
                 layer.decals.clear();
             }
         }
         
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+        GL32.glBindTexture(GL32.GL_TEXTURE_2D, 0);
+        
+        GLFW.glfwSwapBuffers(window);
+        GLFW.glfwPollEvents();
     }
     
     @Override
     public void SetTitle(String title) {
-        glfwSetWindowTitle(window, title);
+        GLFW.glfwSetWindowTitle(window, title);
     }
     
     @Override
     public int GetMouseButtonCount() {
-        return GLFW_MOUSE_BUTTON_LAST + 1;
+        return GLFW.GLFW_MOUSE_BUTTON_LAST + 1;
     }
     
     @Override

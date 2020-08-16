@@ -6,7 +6,7 @@
 
     <groupId>net.meloniumcraft.pge</groupId>
     <artifactId>pge-parent</artifactId>
-    <version>1.0</version>
+    <version>1.1</version>
     <packaging>pom</packaging>
     <modules>
         <module>backends/OpenGL</module>
@@ -19,6 +19,7 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<lwjgl.version>3.2.3</lwjgl.version>
+		<pge.version>1.1</pge.version>
     </properties>
 
 	<profiles>
